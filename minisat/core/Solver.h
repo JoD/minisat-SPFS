@@ -26,9 +26,12 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/mtl/Alg.h"
 #include "minisat/utils/Options.h"
 #include "minisat/core/SolverTypes.h"
+#include <set>
 
 
 namespace Minisat {
+
+class Symmetry;
 
 //=================================================================================================
 // Solver -- the main class:
@@ -144,6 +147,27 @@ public:
     //
     uint64_t solves, starts, decisions, rnd_decisions, propagations, conflicts;
     uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
+
+	// Symmetry methods:
+	//
+	void	addSymmetry(vec<Lit>& from, vec<Lit>& to);	// Add a symmetry to the solver.
+	bool	isDecision(Lit l){return decisionVars[var(l)];}
+	void	notifySymmetries(Lit p);
+	CRef 	propagateSymmetrical(Symmetry* sym, Lit l);
+	bool 	hasLowerLevel(Lit first, Lit second){ return level(var(first))<level(var(second)); }
+	bool 	canPropagate(Symmetry* sym, Clause& cl);
+	int		nSymmetries(){return symmetries.size();}
+
+	bool	testSymmetry(Symmetry* sym);
+	bool 	testActivityForSymmetries();
+	bool	testPropagationClause(Symmetry* sym, Lit l, vec<Lit>& reason);
+	bool	testConflictClause(Symmetry* sym, Lit l, vec<Lit>& reason);
+	void	testPrintSymmetricalClauseInfo(Symmetry* sym, Lit l, vec<Lit>& reason);
+	void	testPrintTrail();
+	void	testPrintClause(vec<Lit>& reason);
+	void	testPrintClause(CRef clause);
+	void 	testPrintValue(Lit l);
+
 
 protected:
 
@@ -263,6 +287,18 @@ protected:
     double   progressEstimate ()      const; // DELETE THIS ?? IT'S NOT VERY USEFUL ...
     bool     withinBudget     ()      const;
 
+	// Symmetry data structures:
+	//
+	vec<Symmetry*>		symmetries;		  	// List of all symmetries in the solver.
+	vec<bool>			decisionVars;		// map mapping vars to a bool which if true iff the lit is a decision lit.
+	vec<vec<Symmetry*> > watcherSymmetries; // List of symmetries which should be notified know when a certain literal  becomes true (index is lit)
+	vec<Lit> 			implic;				// used when constructing clauses
+	const static bool	debug=false; 		// if true the slow test methods are enabled
+	const static bool	addPropagationClauses=true;
+	const static bool	addConflictClauses=true;
+	const static bool	phaseSymOptimization=true;
+	const static bool	inactivePropagationOptimization=true;
+
     // Static helpers:
     //
 
@@ -276,6 +312,9 @@ protected:
     // Returns a random integer 0 <= x < size. Seed must never be 0.
     static inline int irand(double& seed, int size) {
         return (int)(drand(seed) * size); }
+
+	friend class Symmetry;
+
 };
 
 
@@ -379,6 +418,266 @@ inline void     Solver::toDimacs     (const char* file, Lit p, Lit q, Lit r){ ve
 
 //=================================================================================================
 // Debug etc:
+
+//=================================================================================================
+// Symmetry -- a class to represent a symmetry:
+
+class Symmetry{
+private:
+	vec<Lit> sym;
+	vec<Lit> inv;
+	Solver* s;
+	int id;
+	vec<Lit> notifiedLits;
+	int amountNeededForActive;
+	int nextToPropagate;
+	Lit reasonOfPermInactive;
+
+
+public:
+
+
+	Symmetry(Solver* solver, vec<Lit>& from, vec<Lit>& to, int id):
+		s(solver),id(id){
+		sym.growTo(s->nVars()*2);
+		inv.growTo(s->nVars()*2);
+		for(int i=sym.size()-1; i>=0; --i){
+			sym[i]=toLit(i);
+			inv[i]=toLit(i);
+		}
+		for(int i=0; i<from.size(); ++i){
+			sym[toInt(from[i])]=to[i];
+			inv[toInt(to[i])]=from[i];
+		}
+		amountNeededForActive=0;
+		reasonOfPermInactive=lit_Undef;
+		nextToPropagate=0;
+	}
+
+	void print(){
+		printf("Symmetry: %i - neededForActive: %i\n",getId(),amountNeededForActive);
+		for(int i=0; i<sym.size(); ++i){
+			if(sym[i]!=toLit(i)){
+				printf("%i->%i | ",i,toInt(sym[i]));
+			}
+		}printf("\n notifiedLits: ");
+		for(int i=0; i<notifiedLits.size(); ++i){
+			printf("%i:",toInt(notifiedLits[i]));
+			s->testPrintValue(notifiedLits[i]);
+			printf(" | ");
+		}printf("\n");
+		printf("amountNeededForActive: %i | firstNotPropagated: %i\n",amountNeededForActive,nextToPropagate);
+	}
+
+	int getId(){
+		return id;
+	}
+
+	bool getSymmetricalClause(vec<Lit>& in_clause, vec<Lit>& out_clause){
+		out_clause.clear();
+		in_clause.copyTo(out_clause);
+		bool changed = false;
+		for(int i=in_clause.size()-1; i>=0; --i){
+			if(getSymmetrical(in_clause[i])!=out_clause[i]){
+				out_clause[i]=getSymmetrical(in_clause[i]);
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	void getSymmetricalClause(Clause& in_clause, vec<Lit>& out_clause){
+		out_clause.clear();
+		out_clause.growTo(in_clause.size());
+		for(int i=in_clause.size()-1; i>=0; --i){
+			out_clause[i]=getSymmetrical(in_clause[i]);
+		}
+	}
+
+	//	@pre:	in_clause is clause without true literals
+	//	@post: 	out_clause is one of three options, depending on the number of unknown literals:
+	//			all false literals with first most recent and second second recent
+	//			first literal unknown, rest false and second most recent
+	//			first two literals unknown
+	void getSortedSymmetricalClause(Clause& in_clause, vec<Lit>& out_clause){
+		assert(in_clause.size()>=2);
+		int first=0;
+		int second=1;
+		out_clause.clear();
+		out_clause.growTo(in_clause.size());
+		out_clause[0]=getSymmetrical(in_clause[0]);
+		for(int i=1; i<in_clause.size(); ++i){
+			out_clause[i]=getSymmetrical(in_clause[i]);
+			assert(s->value(out_clause[i])!=l_True);
+			if(		 s->value(out_clause[first])!=l_Undef &&
+					(s->value(out_clause[i])==l_Undef || s->hasLowerLevel(out_clause[first],out_clause[i])) ){
+				second = first; first=i;
+			}else if(s->value(out_clause[second])!=l_Undef &&
+					(s->value(out_clause[i])==l_Undef || s->hasLowerLevel(out_clause[second],out_clause[i])) ){
+				second = i;
+			}
+		}
+
+		// note: swapping the final literals to their place is pretty tricky. Imagine for instance the case where first==0 or second==1 ;)
+		if(first!=0){
+			Lit temp = out_clause[0]; out_clause[0]=out_clause[first]; out_clause[first]=temp;
+		}
+		assert(second!=first);
+		if(second==0){ second=first; }
+		if(second!=1){
+			Lit temp = out_clause[1];
+			out_clause[1]=out_clause[second];
+			out_clause[second]=temp;
+		}
+	}
+
+	Lit getSymmetrical(Lit l){
+		return sym[toInt(l)];
+	}
+
+	Lit getInverse(Lit l){
+		return inv[toInt(l)];
+	}
+
+	Lit getNextToPropagate(){
+		if(!isActive() && !s->inactivePropagationOptimization){
+			return lit_Undef;
+		}
+		while( 	nextToPropagate<notifiedLits.size() &&
+				(s->isDecision(notifiedLits[nextToPropagate]) ||
+				 s->value(getSymmetrical(notifiedLits[nextToPropagate]))==l_True) ){
+			++nextToPropagate;
+		}
+		if(nextToPropagate==notifiedLits.size()){
+			return lit_Undef;
+		}else if(isActive()){
+			return notifiedLits[nextToPropagate];
+		}else{
+			assert(s->inactivePropagationOptimization);
+			int nextToPropagateInactive = nextToPropagate;
+			while( 	nextToPropagateInactive<notifiedLits.size() &&
+					!canPropagate(notifiedLits[nextToPropagateInactive]) ){
+				++nextToPropagateInactive;
+			}
+			if(nextToPropagateInactive==notifiedLits.size()){
+				return lit_Undef;
+			}else{
+				return notifiedLits[nextToPropagateInactive];
+			}
+		}
+	}
+
+	bool canPropagate(Lit l){
+		if(s->isDecision(l) || s->value(getSymmetrical(l))==l_True){
+			return false;
+		}
+		if(s->level(var(l))==0){
+			return true;
+		}
+		Clause& cl = s->ca[s->reason(var(l))];
+		bool noUndefYet = true;
+		for(int i=0; i<cl.size(); ++i){
+			if(s->value(getSymmetrical(cl[i]))==l_True){
+				return false;
+			}else if(s->value(getSymmetrical(cl[i]))==l_Undef){
+				if(noUndefYet){
+					noUndefYet=false;
+				}else{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	void notifyEnqueued(Lit l){
+		assert(getSymmetrical(l)!=l);
+		assert(s->value(l)==l_True);
+		notifiedLits.push(l);
+		if(isPermanentlyInactive()){
+			return;
+		}
+		Lit inverse = getInverse(l);
+		Lit symmetrical = getSymmetrical(l);
+		if(s->isDecision(inverse)){
+			if(s->value(inverse)==l_True){ //invar: value(l)==l_True
+				--amountNeededForActive;
+			}else{
+				assert(s->value(inverse)==l_False);
+				reasonOfPermInactive=l;
+			}
+		}
+		if(s->isDecision(l)){
+			if( s->value(symmetrical)==l_Undef ){
+				++amountNeededForActive;
+			}else if(s->value(symmetrical)==l_False){
+				reasonOfPermInactive=l;
+			}
+			// else s->value(symmetrical)==l_True
+		}
+	}
+
+	void notifyBacktrack(Lit l){
+		assert(getSymmetrical(l)!=l);
+		assert(s->value(var(l))!=l_Undef);
+		assert(notifiedLits.size()>0 && notifiedLits.last()==l);
+		notifiedLits.pop();
+		nextToPropagate=0;
+		if(isPermanentlyInactive()){
+			if(reasonOfPermInactive==l){
+				reasonOfPermInactive=lit_Undef;
+			}else{
+				return;
+			}
+		}
+		if( s->isDecision(l) && s->value(getSymmetrical(l))==l_Undef ){
+			--amountNeededForActive;
+		}
+		if( s->isDecision(getInverse(l)) && s->value(getInverse(l))==l_True){
+			++amountNeededForActive;
+		}
+	}
+
+	bool isActive(){
+		return amountNeededForActive==0 && !isPermanentlyInactive(); // Laatste test is nodig voor phase change symmetries
+	}
+
+	bool isPermanentlyInactive(){
+		return reasonOfPermInactive!=lit_Undef;
+	}
+
+	bool testIsActive(vec<Lit>& trail){
+		std::set<Lit> trailCopy;
+		for(int i=0; i<trail.size(); ++i){
+			trailCopy.insert(trail[i]);
+		}
+		for(int i=0; i<trail.size(); ++i){
+			Lit l = trail[i];
+			if(s->isDecision(l)){
+				if(!trailCopy.count(getSymmetrical(l))){
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool testIsPermanentlyInactive(vec<Lit>& trail){
+		std::set<Lit> trailCopy;
+		for(int i=0; i<trail.size(); ++i){
+			trailCopy.insert(trail[i]);
+		}
+		for(int i=0; i<trail.size(); ++i){
+			Lit l = trail[i];
+			if(s->isDecision(l)){
+				if(trailCopy.count(~getSymmetrical(l))){
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+};
 
 
 //=================================================================================================
