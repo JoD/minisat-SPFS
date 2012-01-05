@@ -19,8 +19,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
  **************************************************************************************************/
 
 /*
- * This code has been modified as to implement an experimental symmetry propagator for sat.
- * These modifications are copyrighted to Jo Devriendt (2011-2012), student of the KU Leuven
+ * This code has been modified as to implement Symmetry Propagation For Sat (SPFS).
+ * These modifications are copyrighted to Jo Devriendt (2011-2012), student of the University of Leuven.
  *
  * The same license as above applies concerning the code containing symmetry modifications.
  */

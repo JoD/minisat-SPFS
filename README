@@ -1,3 +1,5 @@
+For running Minisat with SPFS enabled, see instructions at the end of this page.
+
 ================================================================================
 Quick Install
 
@@ -56,3 +58,34 @@ Examples:
 Run minisat with same heuristics as version 2.0:
 
 > minisat <cnf-file> -no-luby -rinc=1.5 -phase-saving=0 -rnd-freq=0.02
+
+================================================================================
+Running Minisat with Symmetry Propagation For Sat (SPFS):
+
+After running the Quick Install (see above), compile the core version of the 
+solver using one of the following commands:
+
+> make cd
+> make cp
+> make cr
+> make csh
+
+which compiles the Minisat core version with respectively debug, profile,
+release or shared library options. SPFS is only implemented in the core version,
+compiling any other version will not use symmetry breaking. Tests have been run
+using the release option.
+
+Next, run minisat with a given cnf-file:
+
+> ./minisat_core <cnf-file>
+
+The program will automatically check if a file with the name <cnf-file>.txt
+is available at the same location as <cnf-file>. If this is the case, it will
+extract symmetries from this file, which should be in the format as generated 
+by Shatter (http://www.aloul.net/Tools/shatter).
+
+Examples of cnf-files and their symmetries are present in the file 
+cnf_testfiles_with_symmetry.zip on this repository.
+
+[ TODO: Refer to paper concerning SPFS when published. ]
+
