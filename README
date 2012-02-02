@@ -1,4 +1,4 @@
-For running Minisat with SPFS enabled, see instructions at the end of this page.
+For running Minisat with SP(SAT), see instructions at the end of this page. 
 
 ================================================================================
 Quick Install
@@ -84,8 +84,8 @@ is available at the same location as <cnf-file>. If this is the case, it will
 extract symmetries from this file, which should be in the format as generated 
 by Shatter (http://www.aloul.net/Tools/shatter).
 
-Examples of cnf-files and their symmetries are present in the file 
-cnf_testfiles_with_symmetry.zip on this repository.
+The .cnf test files used for benchmarking the code are available in the folder
+"cnf test files".
 
 [ TODO: Refer to paper concerning SP(FS) when published. ]
 
