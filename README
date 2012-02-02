@@ -85,7 +85,8 @@ extract symmetries from this file, which should be in the format as generated
 by Shatter (http://www.aloul.net/Tools/shatter).
 
 Examples of cnf-files and their symmetries are present in the file 
-cnf_testfiles_with_symmetry.zip on this repository.
+cnf_testfiles_with_symmetry.zip on this repository. To download this file, clone
+this repository using git.
 
 [ TODO: Refer to paper concerning SP(FS) when published. ]
 
