@@ -85,7 +85,8 @@ extract symmetries from this file, which should be in the format as generated
 by Shatter (http://www.aloul.net/Tools/shatter).
 
 The .cnf test files used for benchmarking the code are available in the folder
-"cnf test files". 
+"cnf test files". Clone this repository or download the repository in a zip
+archive (button in the left upper corner) to retrieve the files.
 
 [ TODO: Refer to paper concerning SP(FS) when published. ]
 
