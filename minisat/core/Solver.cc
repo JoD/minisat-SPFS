@@ -244,7 +244,7 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 		assert(from[i]!=to[i]);
 		watcherSymmetries[toInt(from[i])].push(sym);
 
-		if(phaseSymOptimization && from[i]==~to[i]){
+		if(varOrderOptimization && from[i]==~to[i]){
 			varBumpActivity(var(from[i]),-var_inc);
 		}
 	}
@@ -695,6 +695,8 @@ CRef Solver::propagate()
     CRef    confl     = CRef_Undef;
     int     num_props = 0;
     watches.cleanAll();
+    int sym_it=symmetries.size()-1;
+    vec<Symmetry*> inactiveSyms;
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
@@ -745,9 +747,32 @@ CRef Solver::propagate()
         }
         ws.shrink(i - j);
 
-		// symmetry propagation
-		for(int i=watcherSymmetries[toInt(p)].size()-1; qhead==trail.size() && confl==CRef_Undef && i>=0 ; --i){
-			Symmetry* sym = watcherSymmetries[toInt(p)][i];
+        //inactiveSyms.clear();
+		// weakly active symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
+		for( int i=symmetries.size()-1; qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
+			Symmetry* sym = symmetries[sym_it];
+			Lit orig = lit_Undef;
+			if(sym->isActive()){
+				orig = sym->getNextToPropagate();
+				if(orig!=lit_Undef){
+					confl = propagateSymmetrical(sym,orig);
+				}
+			}else{
+				if(inactivePropagationOptimization){
+					inactiveSyms.push(sym);
+				}
+			}
+			if(orig==lit_Undef){ //adjust counter
+				if(sym_it==0){
+					sym_it=symmetries.size()-1;
+				}else{
+					--sym_it;
+				}
+			}
+		}
+		// weakly inactive symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
+		for( int i=inactiveSyms.size()-1; inactivePropagationOptimization && qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
+			Symmetry* sym = inactiveSyms[i];
 			Lit orig = sym->getNextToPropagate();
 			if(orig!=lit_Undef){
 				confl = propagateSymmetrical(sym,orig);

@@ -303,7 +303,7 @@ protected:
 	const static bool	debug=false; 		// if true the slow test methods are enabled
 	const static bool	addPropagationClauses=true;
 	const static bool	addConflictClauses=true;
-	const static bool	phaseSymOptimization=true;
+	const static bool	varOrderOptimization=true;
 	const static bool	inactivePropagationOptimization=true;
 
     // Static helpers:

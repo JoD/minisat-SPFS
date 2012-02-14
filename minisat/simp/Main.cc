@@ -123,6 +123,20 @@ int main(int argc, char** argv)
         
         parse_DIMACS(in, S);
         gzclose(in);
+
+    	//parse symmetry file
+		char nieuwbestand[strlen(argv[1])+4];
+		strcpy(nieuwbestand,argv[1]);
+		strcat(nieuwbestand,".txt");
+
+		in=gzopen(nieuwbestand,"rb");
+		if (in != NULL){
+			parse_SYMMETRY(in,S);
+		}
+		gzclose(in);
+		if (S.verbosity > 0){
+			 printf("|  Number of symmetries:%12d                                          |\n",S.nSymmetries()); }
+
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
 
         if (S.verbosity > 0){
