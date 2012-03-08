@@ -86,7 +86,7 @@ both .pdf as well as .ods format.
 
 The file "Symmetry Propagation (in SAT).pdf" is a paper submitted to the 
 SAT2012 conference, which describes the ideas and algorithms implemented in the
-modfied Minisat code presented here.
+modified Minisat code presented here.
 
 To download this repository without using git, click on the "zip" button in the
 upper left corner of the web page "https://github.com/JoD/minisat-SPFS".
