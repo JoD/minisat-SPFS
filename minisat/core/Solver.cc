@@ -778,7 +778,6 @@ CRef Solver::propagate()
 {
     CRef    confl     = CRef_Undef;
     int     num_props = 0;
-    int sym_it=symmetries.size()-1;
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
@@ -833,19 +832,12 @@ CRef Solver::propagate()
 
 		// weakly active symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
 		for( int i=symmetries.size()-1; qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
-			Symmetry* sym = symmetries[sym_it];
+			Symmetry* sym = symmetries[i];
 			Lit orig = lit_Undef;
 			if(sym->isActive()){
 				orig = sym->getNextToPropagate();
 				if(orig!=lit_Undef){
 					confl = propagateSymmetrical(sym,orig);
-				}
-			}
-			if(orig==lit_Undef){ //adjust counter
-				if(sym_it==0){
-					sym_it=symmetries.size()-1;
-				}else{
-					--sym_it;
 				}
 			}
 		}
