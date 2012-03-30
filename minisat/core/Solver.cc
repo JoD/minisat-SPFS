@@ -87,6 +87,7 @@ Solver::Solver() :
     //
   , solves(0), starts(0), decisions(0), rnd_decisions(0), propagations(0), conflicts(0)
   , dec_vars(0), clauses_literals(0), learnts_literals(0), max_literals(0), tot_literals(0)
+  , sympropagations(0), symconflicts(0), invertingSyms(0)
 
   , ok                 (true)
   , cla_inc            (1)
@@ -218,8 +219,11 @@ bool Solver::satisfied(const Clause& c) const {
 //
 void Solver::cancelUntil(int level) {
     if (decisionLevel() > level){
+    	if(verbosity>=2){ printf("Backtrack occurs on level %i to level %i\n",decisionLevel(),level); }
+
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
-//			printf("Backtracking literal: %i\n",toInt(trail[c]));
+        	if(verbosity>=2){ printf("Back: %i\n",toDimacs(trail[c])); }
+
 			int litIndex = toInt(trail[c]);
 			for(int i=watcherSymmetries[litIndex].size()-1; i>=0; --i){
 				watcherSymmetries[litIndex][i]->notifyBacktrack(trail[c]);
@@ -234,19 +238,27 @@ void Solver::cancelUntil(int level) {
         qhead = trail_lim[level];
         trail.shrink(trail.size() - trail_lim[level]);
         trail_lim.shrink(trail_lim.size() - level);
+
     } }
 
 void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 	assert(from.size()==to.size());
 	Symmetry* sym = new Symmetry(this, from, to, symmetries.size());
+	bool isInverting = false;
 	symmetries.push(sym);
 	for(int i=0; i<from.size(); ++i){
 		assert(from[i]!=to[i]);
 		watcherSymmetries[toInt(from[i])].push(sym);
 
-		if(varOrderOptimization && from[i]==~to[i]){
-			varBumpActivity(var(from[i]),-var_inc);
+		if(from[i]==~to[i]){
+			isInverting = true;
+			if(varOrderOptimization){
+				varBumpActivity(var(from[i]),-var_inc);
+			}
 		}
+	}
+	if(isInverting){
+		++invertingSyms;
 	}
 
 	assert(testSymmetry(sym));
@@ -254,6 +266,8 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 
 CRef Solver::propagateSymmetrical(Symmetry* sym, Lit l){
 	assert(value(sym->getSymmetrical(l))!=l_True);
+
+	++sympropagations; //note: every symmetrical propagation either induces a conflict, or will be examined in the propagation queue (see the counter propagations)
 
 	implic.clear();
 	if(level(var(l))==0){
@@ -270,6 +284,7 @@ CRef Solver::propagateSymmetrical(Symmetry* sym, Lit l){
 	assert(value(implic[1])==l_False);
 
 	CRef cr = ca.alloc(implic, true);
+	if(verbosity>=2){ printf("Symmetry clause added: "); testPrintClauseDimacs(cr); }
 	if(value(implic[0])==l_Undef){
 		assert( testPropagationClause(sym,l,implic) );
 		if(addPropagationClauses){
@@ -287,6 +302,7 @@ CRef Solver::propagateSymmetrical(Symmetry* sym, Lit l){
 			attachClause(cr);
 			claBumpActivity(ca[cr]);
 		}
+		++symconflicts;
 		return cr;
 	}
 }
@@ -387,6 +403,21 @@ void Solver::testPrintValue(Lit l){
 	}else{
 		printf("%c",'?');
 	}
+}
+
+void Solver::testPrintClauseDimacs(CRef clause){
+	Clause& reason = ca[clause];
+	for(int i=0; i<reason.size(); ++i){
+		printf("%i ", toDimacs(reason[i]));
+	}printf("\n");
+}
+
+int Solver::toDimacs(Lit l){
+	int result = var(l)+1;
+	if(sign(l)){
+		result *=-1;
+	}
+	return result;
 }
 
 bool Solver::testConflictClause(Symmetry* sym, Lit l, vec<Lit>& reasonn){
@@ -696,13 +727,15 @@ CRef Solver::propagate()
     int     num_props = 0;
     watches.cleanAll();
     int sym_it=symmetries.size()-1;
-    vec<Symmetry*> inactiveSyms;
+//    vec<Symmetry*> inactiveSyms;
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
         vec<Watcher>&  ws  = watches[p];
         Watcher        *i, *j, *end;
         num_props++;
+
+        if(verbosity>=2){ printf("Prop %i: %i\n",decisionLevel(),toDimacs(p)); }
 
         for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
             // Try to avoid inspecting the clause:
@@ -747,7 +780,7 @@ CRef Solver::propagate()
         }
         ws.shrink(i - j);
 
-        //inactiveSyms.clear();
+//        inactiveSyms.clear();
 		// weakly active symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
 		for( int i=symmetries.size()-1; qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
 			Symmetry* sym = symmetries[sym_it];
@@ -757,11 +790,11 @@ CRef Solver::propagate()
 				if(orig!=lit_Undef){
 					confl = propagateSymmetrical(sym,orig);
 				}
-			}else{
-				if(inactivePropagationOptimization){
-					inactiveSyms.push(sym);
-				}
-			}
+			}//else{
+//				if(inactivePropagationOptimization){
+//					inactiveSyms.push(sym);
+//				}
+//			}
 			if(orig==lit_Undef){ //adjust counter
 				if(sym_it==0){
 					sym_it=symmetries.size()-1;
@@ -771,11 +804,14 @@ CRef Solver::propagate()
 			}
 		}
 		// weakly inactive symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
-		for( int i=inactiveSyms.size()-1; inactivePropagationOptimization && qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
-			Symmetry* sym = inactiveSyms[i];
-			Lit orig = sym->getNextToPropagate();
-			if(orig!=lit_Undef){
-				confl = propagateSymmetrical(sym,orig);
+		for( int i=symmetries.size()-1; inactivePropagationOptimization && qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
+			Symmetry* sym = symmetries[i];
+			//Symmetry* sym = inactiveSyms[i];
+			if(!sym->isActive()){
+				Lit orig = sym->getNextToPropagate();
+				if(orig!=lit_Undef){
+					confl = propagateSymmetrical(sym,orig);
+				}
 			}
 		}
 		if(confl!=CRef_Undef){
@@ -920,6 +956,7 @@ lbool Solver::search(int nof_conflicts)
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
                 uncheckedEnqueue(learnt_clause[0], cr);
+                if(verbosity>=2){ printf("Conflict clause added: "); testPrintClauseDimacs(cr); }
             }
 
             varDecayActivity();
@@ -1159,8 +1196,10 @@ void Solver::printStats() const
     double mem_used = memUsedPeak();
     printf("restarts              : %"PRIu64"\n", starts);
     printf("conflicts             : %-12"PRIu64"   (%.0f /sec)\n", conflicts   , conflicts   /cpu_time);
+    printf("symconflicts          : %-12"PRIu64"   (%.0f /sec)\n", symconflicts   , symconflicts   /cpu_time);
     printf("decisions             : %-12"PRIu64"   (%4.2f %% random) (%.0f /sec)\n", decisions, (float)rnd_decisions*100 / (float)decisions, decisions   /cpu_time);
     printf("propagations          : %-12"PRIu64"   (%.0f /sec)\n", propagations, propagations/cpu_time);
+    printf("sympropagations       : %-12"PRIu64"   (%.0f /sec)\n", sympropagations, sympropagations/cpu_time);
     printf("conflict literals     : %-12"PRIu64"   (%4.2f %% deleted)\n", tot_literals, (max_literals - tot_literals)*100 / (double)max_literals);
     if (mem_used != 0) printf("Memory used           : %.2f MB\n", mem_used);
     printf("CPU time              : %g s\n", cpu_time);

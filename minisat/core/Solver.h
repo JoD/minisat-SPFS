@@ -154,6 +154,7 @@ public:
     //
     uint64_t solves, starts, decisions, rnd_decisions, propagations, conflicts;
     uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
+    uint64_t sympropagations, symconflicts, invertingSyms;
 
 	// Symmetry methods:
 	//
@@ -164,6 +165,7 @@ public:
 	bool 	hasLowerLevel(Lit first, Lit second){ return level(var(first))<level(var(second)); }
 	bool 	canPropagate(Symmetry* sym, Clause& cl);
 	int		nSymmetries(){return symmetries.size();}
+	int		nInvertingSymmetries(){return invertingSyms;}
 
 	bool	testSymmetry(Symmetry* sym);
 	bool 	testActivityForSymmetries();
@@ -174,6 +176,8 @@ public:
 	void	testPrintClause(vec<Lit>& reason);
 	void	testPrintClause(CRef clause);
 	void 	testPrintValue(Lit l);
+	void 	testPrintClauseDimacs(CRef clause);
+	int		toDimacs(Lit l);
 
 
 protected:

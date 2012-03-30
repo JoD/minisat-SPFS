@@ -138,7 +138,9 @@ int main(int argc, char** argv)
 		}
 		gzclose(in);
 		if (S.verbosity > 0){
-			 printf("|  Number of symmetries:%12d                                          |\n",S.nSymmetries()); }
+			printf("|  Number of symmetries:%12d                                          |\n",S.nSymmetries());
+			printf("|  Number of invertingSyms:%9d                                          |\n",S.nInvertingSymmetries());
+		}
 
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
