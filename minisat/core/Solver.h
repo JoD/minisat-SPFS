@@ -150,6 +150,11 @@ public:
     int       learntsize_adjust_start_confl;
     double    learntsize_adjust_inc;
 
+    bool	addPropagationClauses;
+    bool	addConflictClauses;
+    bool	varOrderOptimization;
+    bool	inactivePropagationOptimization;
+
     // Statistics: (read-only member variable)
     //
     uint64_t solves, starts, decisions, rnd_decisions, propagations, conflicts;
@@ -305,10 +310,6 @@ protected:
 	vec<vec<Symmetry*> > watcherSymmetries; // List of symmetries which should be notified know when a certain literal  becomes true (index is lit)
 	vec<Lit> 			implic;				// used when constructing clauses
 	const static bool	debug=false; 		// if true the slow test methods are enabled
-	const static bool	addPropagationClauses=true;
-	const static bool	addConflictClauses=true;
-	const static bool	varOrderOptimization=true;
-	const static bool	inactivePropagationOptimization=true;
 
     // Static helpers:
     //

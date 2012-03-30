@@ -50,6 +50,9 @@ static BoolOption    opt_luby_restart      (_cat, "luby",        "Use the Luby r
 static IntOption     opt_restart_first     (_cat, "rfirst",      "The base restart interval", 100, IntRange(1, INT32_MAX));
 static DoubleOption  opt_restart_inc       (_cat, "rinc",        "Restart interval increase factor", 2, DoubleRange(1, false, HUGE_VAL, false));
 static DoubleOption  opt_garbage_frac      (_cat, "gc-frac",     "The fraction of wasted memory allowed before a garbage collection is triggered",  0.20, DoubleRange(0, false, HUGE_VAL, false));
+static BoolOption    opt_storing	       (_cat, "storing",     "Store generated symmetry clauses for future use", true);
+static BoolOption    opt_inverting	       (_cat, "inverting-opt","Adjust initial variable order to make inverting symmetries faster", true);
+static BoolOption    opt_inactive	       (_cat, "inactive-opt","Conduct symmetry propagation for inactive symmetries", true);
 
 
 //=================================================================================================
@@ -82,6 +85,11 @@ Solver::Solver() :
     //
   , learntsize_adjust_start_confl (100)
   , learntsize_adjust_inc         (1.5)
+
+  , addPropagationClauses			(opt_storing)
+  , addConflictClauses				(opt_storing)
+  , varOrderOptimization			(opt_inverting)
+  , inactivePropagationOptimization	(opt_inactive)
 
     // Statistics: (formerly in 'SolverStats')
     //
