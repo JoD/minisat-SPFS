@@ -4,4 +4,4 @@ More detailed results are given in the two subfolders. The subfolder [original b
 
 All benchmarks used a 1000 second time limit to detect symmetry with Shatter, and a 5000 second time limit to solve the resulting problem.
 
-In the visualization [plot.pdf], we sorted the results on runtime for every algorithm separately. This figure makes it clear that SP(SAT)+opt outperforms (or at least, performs comparable to) shatter, the state-of-the art symmetry breaking method so far. Given the fact that our method is dynamic, we believe these results show the significancy of our contributions.
+In the visualization [plot.pdf], we sorted the results on runtime for every algorithm separately. This figure makes it clear that SP(SAT)+opt outperforms (or at least, performs comparable to) Shatter, the current state-of-the art symmetry breaking method. Given the fact that our method is a dynamic symmetry breaking approach, we believe these results show that SP(SAT) is a significant contribution.
