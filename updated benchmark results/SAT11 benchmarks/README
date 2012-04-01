@@ -1,0 +1,2 @@
+This folder contains detailed experimental results for all SAT11 benchmarks showing significant symmetry (detectable in 1000 seconds). All possibly relevant results can be found in the .csv files (for the different algorithms respecitvely)
+[summary.pdf] only contains only the information requested by the reviewers. (run-time, decision, propagations, symmetry propagations, detection time)
