@@ -1,4 +1,4 @@
-This folder contains a summary of all benchmark results [], as well as a visualization of this result [plot.pdf].
+This folder contains a summary of all benchmark results [summary.pdf], as well as a visualization of this result [plot.pdf].
 
 More detailed results are given in the two subfolders. The subfolder [original benchmarks] contains the benchmarks already present in the SP(SAT) paper, but with much longer running time and also, with satisfiable instances included. Also, more information such as the number of symmetry propagations is now available. The subfolder [SAT11 benchmarks] contains problems of the SAT11 competition in which we detected symmetry, and which might be included in the final version of the paper.
 
