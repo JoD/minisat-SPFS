@@ -1,0 +1,25 @@
+WARNING: for repeatability, setting FPU to use double precision
+============================[ Problem Statistics ]=============================
+|                                                                             |
+|  Number of symmetries:           3                                          |
+|  Number of invertingSyms:        0                                          |
+|  Number of variables:             6                                         |
+|  Number of clauses:               9                                         |
+|  Parse time:                   0.00 s                                       |
+|                                                                             |
+============================[ Search Statistics ]==============================
+| Conflicts |          ORIGINAL         |          LEARNT          | Progress |
+|           |    Vars  Clauses Literals |    Limit  Clauses Lit/Cl |          |
+===============================================================================
+===============================================================================
+restarts              : 1
+conflicts             : 2              (inf /sec)
+symconflicts          : 0              (-nan /sec)
+decisions             : 1              (0.00 % random) (inf /sec)
+propagations          : 10             (inf /sec)
+sympropagations       : 0              (-nan /sec)
+conflict literals     : 1              (0.00 % deleted)
+Memory used           : 5.00 MB
+CPU time              : 0 s
+
+UNSATISFIABLE

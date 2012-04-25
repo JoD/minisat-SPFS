@@ -1,0 +1,31 @@
+WARNING: for repeatability, setting FPU to use double precision
+============================[ Problem Statistics ]=============================
+|                                                                             |
+|  Number of symmetries:          15                                          |
+|  Number of invertingSyms:        0                                          |
+|  Number of variables:            72                                         |
+|  Number of clauses:             297                                         |
+|  Parse time:                   0.00 s                                       |
+|                                                                             |
+============================[ Search Statistics ]==============================
+| Conflicts |          ORIGINAL         |          LEARNT          | Progress |
+|           |    Vars  Clauses Literals |    Limit  Clauses Lit/Cl |          |
+===============================================================================
+|       100 |      72      297      648 |      108      100     28 |  0.020 % |
+|       250 |      72      297      648 |      119      111     25 |  0.020 % |
+|       475 |      72      297      648 |      131      106     22 |  0.020 % |
+|       812 |      72      297      648 |      144      121     21 |  0.020 % |
+|      1318 |      72      297      648 |      159      104     18 |  0.020 % |
+|      2077 |      72      297      648 |      175      201     20 |  0.020 % |
+===============================================================================
+restarts              : 14
+conflicts             : 2318           (231800 /sec)
+symconflicts          : 369            (36900 /sec)
+decisions             : 3658           (0.00 % random) (365800 /sec)
+propagations          : 38727          (3872700 /sec)
+sympropagations       : 1444           (144400 /sec)
+conflict literals     : 53920          (5.07 % deleted)
+Memory used           : 5.00 MB
+CPU time              : 0.01 s
+
+UNSATISFIABLE
