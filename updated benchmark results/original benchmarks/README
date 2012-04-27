@@ -1,2 +1,0 @@
-This folder contains detailed experimental results for all benchmarks provided in the original version of our paper showing symmetry (detectable in 1000 seconds). All potentially relevant data can be found in the .csv files, separated by algorithm.
-[summary.pdf] only contains only the information requested by the reviewers, which is the number of symmetries, number of inverting symmetries, run-time, decisions, propagations, symmetry propagations, and symmetry detection time.
