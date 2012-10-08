@@ -45,7 +45,7 @@ static void readClause(B& in, Solver& S, vec<Lit>& lits) {
 	for (;;){
 		parsed_lit = parseInt(in);
 		if (parsed_lit == 0) break;
-		var = abs(parsed_lit)-1;
+		var = abs(parsed_lit); // it used to be -1, but the solver always uses variable 0 to denote symmetry breaking clauses
 		while (var >= S.nVars()) S.newVar();
 		lits.push( (parsed_lit > 0) ? mkLit(var) : ~mkLit(var) );
 	}
@@ -72,15 +72,50 @@ static void parse_DIMACS_main(B& in, Solver& S) {
 			}
 		} else if (*in == 'c' || *in == 'p')
 			skipLine(in);
+
 		else{
 			cnt++;
 			readClause(in, S, lits);
-			S.addClause_(lits); }
+			S.addClause_(lits);}
 	}
-	if (vars != S.nVars())
+	if (vars != S.nVars()-1)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of variables.\n");
 	if (cnt  != clauses)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of clauses.\n");
+}
+
+template<class B, class Solver>
+static void parse_BREAKING_main(B& in, Solver& S) {
+	vec<Lit> lits;
+	int vars    = 0;
+	int clauses = 0;
+	int cnt     = 0;
+	vec<vec<Lit> > clauseSet;
+	for (;;){
+		skipWhitespace(in);
+		if (*in == EOF) break;
+		else if (*in == 'p'){
+			if (eagerMatch(in, "p cnf")){
+				vars = parseInt(in);
+				clauses = parseInt(in);
+				// SATRACE'06 hack
+				// if (clauses > 4000000)
+				//     S.eliminate(true);
+			}else{
+				printf("PARSE ERROR! Unexpected char: %c\n", *in), exit(3);
+			}
+		} else if (*in == 'c' || *in == 'p')
+			skipLine(in);
+		else{
+			cnt++;
+			readClause(in, S, lits);
+			lits.push(mkLit(0,false));
+			S.addClause_(lits);}
+	}
+	if (vars != S.nVars()-1)
+		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of variables.\n");
+	if (cnt  != clauses)
+		fprintf(stderr, "WARNING! SymOnly header mismatch: wrong number of clauses.\n");
 }
 
 // Symmetry is a commented line with cycles.
@@ -90,13 +125,13 @@ static void parse_DIMACS_main(B& in, Solver& S) {
 // e.g.: c (1 2 3)(4 5 6) 0 denotes the symmetry 1->2, 2->3, 3->1, -1->-2, -2->-3, -3->-1.
 template<class B, class Solver>
 static void parse_SYMMETRY_main(B& in, Solver& S) {
-	int nrVars=S.nVars();
+	int nrVars=S.nVars()-1;
 	assert(nrVars>0);
 	assert(*in=='[');
 	++in; // skipping the "["
 	++in; // jumping to next line
 	int start,first, second;
-	while(true){
+	while(*in!=']'){
 		vec<Lit> symFrom, symTo;
 		while(*in=='('){
 			++in;
@@ -114,8 +149,8 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 					second=nrVars-second;
 				}
 				if(second>= -nrVars && first>= -nrVars){ //check for phase shift symmetries
-					symFrom.push(mkLit(abs(first)-1,first<0));
-					symTo.push(mkLit(abs(second)-1,second<0));
+					symFrom.push(mkLit(abs(first),first<0));
+					symTo.push(mkLit(abs(second),second<0));
 				}else{
 					assert(second< -nrVars && first< -nrVars);
 				}
@@ -124,17 +159,21 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 			first = second;
 			second = start;
 			if(second>=-nrVars && first>=-nrVars){ //check for phase shift symmetries
-				symFrom.push(mkLit(abs(first)-1,first<0));
-				symTo.push(mkLit(abs(second)-1,second<0));
+				symFrom.push(mkLit(abs(first),first<0));
+				symTo.push(mkLit(abs(second),second<0));
 			}else{
 				assert(second< -nrVars && first< -nrVars);
 			}
 		}
+		symFrom.push(mkLit(0,false));
+		symTo.push(mkLit(0,true));
+		symFrom.push(mkLit(0,true));
+		symTo.push(mkLit(0,false));
 		S.addSymmetry(symFrom,symTo);
 		if(*in==','){
 			++in; ++in; assert(*in=='(');
 		}else{
-			break;
+			++in; assert(*in==']');
 		}
 	}
 }
@@ -145,6 +184,13 @@ template<class Solver>
 static void parse_DIMACS(gzFile input_stream, Solver& S) {
 	StreamBuffer in(input_stream);
 	parse_DIMACS_main(in, S); }
+
+// Inserts symmetry breaking clauses into solver.
+//
+template<class Solver>
+static void parse_BREAKING(gzFile input_stream, Solver& S) {
+	StreamBuffer in(input_stream);
+	parse_BREAKING_main(in, S); }
 
 // Inserts symmetry into solver.
 //

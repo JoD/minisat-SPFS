@@ -51,6 +51,19 @@ public:
     //
     Solver();
     virtual ~Solver();
+    void	gracefulExit(lbool ret){
+    	printf("===============================================================================\n");
+    	printResult(ret);
+    	printf("This was a graceful exit, no data will be written to files.\n");
+    	exit(0);
+    }
+    
+    void	printResult(lbool ret){
+    	if (verbosity > 0){
+			printStats();
+			printf("\n"); }	
+		printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+    }
 
     // Problem specification:
     //
@@ -157,7 +170,6 @@ public:
     bool	addPropagationClauses;
     bool	addConflictClauses;
     bool	varOrderOptimization;
-    bool	inactivePropagationOptimization;
 
     // Statistics: (read-only member variable)
     //
@@ -169,14 +181,14 @@ public:
 	//
 	void	addSymmetry(vec<Lit>& from, vec<Lit>& to);	// Add a symmetry to the solver.
 	bool	isDecision(Lit l){return decisionVars[var(l)];}
-	void	notifySymmetries(Lit p);
+//	void	notifySymmetries(Lit p);
 	CRef 	propagateSymmetrical(Symmetry* sym, Lit l);
 	bool 	hasLowerLevel(Lit first, Lit second){ return level(var(first))<level(var(second)); }
 	bool 	canPropagate(Symmetry* sym, Clause& cl);
 	int		nSymmetries(){return symmetries.size();}
 	int		nInvertingSymmetries(){return invertingSyms;}
 
-	bool	testSymmetry(Symmetry* sym);
+//	bool	testSymmetry(Symmetry* sym);
 	bool 	testActivityForSymmetries();
 	bool	testPropagationClause(Symmetry* sym, Lit l, vec<Lit>& reason);
 	bool	testConflictClause(Symmetry* sym, Lit l, vec<Lit>& reason);
@@ -457,10 +469,7 @@ private:
 	vec<Lit> inv;
 	Solver* s;
 	int id;
-	vec<Lit> notifiedLits;
-	int amountNeededForActive;
 	int nextToPropagate;
-	Lit reasonOfPermInactive;
 
 
 public:
@@ -478,24 +487,17 @@ public:
 			sym[toInt(from[i])]=to[i];
 			inv[toInt(to[i])]=from[i];
 		}
-		amountNeededForActive=0;
-		reasonOfPermInactive=lit_Undef;
 		nextToPropagate=0;
 	}
 
 	void print(){
-		printf("Symmetry: %i - neededForActive: %i\n",getId(),amountNeededForActive);
+		printf("Symmetry: %i\n",id);
 		for(int i=0; i<sym.size(); ++i){
 			if(sym[i]!=toLit(i)){
 				printf("%i->%i | ",i,toInt(sym[i]));
 			}
-		}printf("\n notifiedLits: ");
-		for(int i=0; i<notifiedLits.size(); ++i){
-			printf("%i:",toInt(notifiedLits[i]));
-			s->testPrintValue(notifiedLits[i]);
-			printf(" | ");
-		}printf("\n");
-		printf("amountNeededForActive: %i | firstNotPropagated: %i\n",amountNeededForActive,nextToPropagate);
+		}
+		printf("nextToPropagate: %i\n",nextToPropagate);
 	}
 
 	int getId(){
@@ -523,11 +525,11 @@ public:
 		}
 	}
 
-	//	@pre:	in_clause is clause without true literals
+	//TODO: this method should never get called when clause isn't unit or conflict, so code could be simpler
 	//	@post: 	out_clause is one of three options, depending on the number of unknown literals:
 	//			all false literals with first most recent and second second recent
 	//			first literal unknown, rest false and second most recent
-	//			first two literals unknown
+	//			first two literals unknown, rest non-true
 	void getSortedSymmetricalClause(Clause& in_clause, vec<Lit>& out_clause){
 		assert(in_clause.size()>=2);
 		int first=0;
@@ -561,39 +563,40 @@ public:
 	}
 
 	Lit getSymmetrical(Lit l){
-		return sym[toInt(l)];
-	}
-
-	Lit getInverse(Lit l){
-		return inv[toInt(l)];
+		int int_l=toInt(l);
+		if(int_l>=sym.size()){
+			return l;
+		}
+		return sym[int_l];
 	}
 
 	Lit getNextToPropagate(){
-		if(!isActive() && !s->inactivePropagationOptimization){
-			return lit_Undef;
-		}
-		while( 	nextToPropagate<notifiedLits.size() &&
-				(s->isDecision(notifiedLits[nextToPropagate]) ||
-				 s->value(getSymmetrical(notifiedLits[nextToPropagate]))==l_True) ){
+		while(nextToPropagate<s->trail.size() && canNotPropagateUntilBacktrack(s->trail[nextToPropagate])){
 			++nextToPropagate;
 		}
-		if(nextToPropagate==notifiedLits.size()){
-			return lit_Undef;
-		}else if(isActive()){
-			return notifiedLits[nextToPropagate];
-		}else{
-			assert(s->inactivePropagationOptimization);
-			int nextToPropagateInactive = nextToPropagate;
-			while( 	nextToPropagateInactive<notifiedLits.size() &&
-					!canPropagate(notifiedLits[nextToPropagateInactive]) ){
-				++nextToPropagateInactive;
-			}
-			if(nextToPropagateInactive==notifiedLits.size()){
-				return lit_Undef;
-			}else{
-				return notifiedLits[nextToPropagateInactive];
+		for(int i=nextToPropagate; i<s->trail.size(); ++i){
+			if(canPropagate(s->trail[i])){
+				return s->trail[i];
 			}
 		}
+		
+		return lit_Undef;
+	}
+	
+	bool canNotPropagateUntilBacktrack(Lit l){
+		if(s->isDecision(l)){
+			return true;
+		}
+		if(s->level(var(l))==0){
+			return false;
+		}
+		Clause& cl = s->ca[s->reason(var(l))];
+		for(int i=0; i<cl.size(); ++i){
+			if(s->value(getSymmetrical(cl[i]))==l_True){
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool canPropagate(Lit l){
@@ -604,6 +607,7 @@ public:
 			return true;
 		}
 		Clause& cl = s->ca[s->reason(var(l))];
+		
 		bool noUndefYet = true;
 		for(int i=0; i<cl.size(); ++i){
 			if(s->value(getSymmetrical(cl[i]))==l_True){
@@ -619,92 +623,8 @@ public:
 		return true;
 	}
 
-	void notifyEnqueued(Lit l){
-		assert(getSymmetrical(l)!=l);
-		assert(s->value(l)==l_True);
-		notifiedLits.push(l);
-		if(isPermanentlyInactive()){
-			return;
-		}
-		Lit inverse = getInverse(l);
-		Lit symmetrical = getSymmetrical(l);
-		if(s->isDecision(inverse)){
-			if(s->value(inverse)==l_True){ //invar: value(l)==l_True
-				--amountNeededForActive;
-			}else{
-				assert(s->value(inverse)==l_False);
-				reasonOfPermInactive=l;
-			}
-		}
-		if(s->isDecision(l)){
-			if( s->value(symmetrical)==l_Undef ){
-				++amountNeededForActive;
-			}else if(s->value(symmetrical)==l_False){
-				reasonOfPermInactive=l;
-			}
-			// else s->value(symmetrical)==l_True
-		}
-	}
-
-	void notifyBacktrack(Lit l){
-		assert(getSymmetrical(l)!=l);
-		assert(s->value(var(l))!=l_Undef);
-		assert(notifiedLits.size()>0 && notifiedLits.last()==l);
-		notifiedLits.pop();
+	void notifyBacktrack(){
 		nextToPropagate=0;
-		if(isPermanentlyInactive()){
-			if(reasonOfPermInactive==l){
-				reasonOfPermInactive=lit_Undef;
-			}else{
-				return;
-			}
-		}
-		if( s->isDecision(l) && s->value(getSymmetrical(l))==l_Undef ){
-			--amountNeededForActive;
-		}
-		if( s->isDecision(getInverse(l)) && s->value(getInverse(l))==l_True){
-			++amountNeededForActive;
-		}
-	}
-
-	bool isActive(){
-		return amountNeededForActive==0 && !isPermanentlyInactive(); // Laatste test is nodig voor phase change symmetries
-	}
-
-	bool isPermanentlyInactive(){
-		return reasonOfPermInactive!=lit_Undef;
-	}
-
-	bool testIsActive(vec<Lit>& trail){
-		std::set<Lit> trailCopy;
-		for(int i=0; i<trail.size(); ++i){
-			trailCopy.insert(trail[i]);
-		}
-		for(int i=0; i<trail.size(); ++i){
-			Lit l = trail[i];
-			if(s->isDecision(l)){
-				if(!trailCopy.count(getSymmetrical(l))){
-					return false;
-				}
-			}
-		}
-		return true;
-	}
-
-	bool testIsPermanentlyInactive(vec<Lit>& trail){
-		std::set<Lit> trailCopy;
-		for(int i=0; i<trail.size(); ++i){
-			trailCopy.insert(trail[i]);
-		}
-		for(int i=0; i<trail.size(); ++i){
-			Lit l = trail[i];
-			if(s->isDecision(l)){
-				if(trailCopy.count(~getSymmetrical(l))){
-					return true;
-				}
-			}
-		}
-		return false;
 	}
 };
 

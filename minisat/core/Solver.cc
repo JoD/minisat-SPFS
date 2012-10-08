@@ -53,7 +53,6 @@ static DoubleOption  opt_restart_inc       (_cat, "rinc",        "Restart interv
 static DoubleOption  opt_garbage_frac      (_cat, "gc-frac",     "The fraction of wasted memory allowed before a garbage collection is triggered",  0.20, DoubleRange(0, false, HUGE_VAL, false));
 static BoolOption    opt_storing	       (_cat, "storing",     "Store generated symmetry clauses for future use", true);
 static BoolOption    opt_inverting	       (_cat, "inverting-opt","Adjust initial variable order to make inverting symmetries faster", true);
-static BoolOption    opt_inactive	       (_cat, "inactive-opt","Conduct symmetry propagation for inactive symmetries", true);
 
 
 //=================================================================================================
@@ -90,7 +89,6 @@ Solver::Solver() :
   , addPropagationClauses			(opt_storing)
   , addConflictClauses				(opt_storing)
   , varOrderOptimization			(opt_inverting)
-  , inactivePropagationOptimization	(opt_inactive)
 
     // Statistics: (formerly in 'SolverStats')
     //
@@ -179,7 +177,7 @@ bool Solver::addClause_(vec<Lit>& ps)
     for (i = j = 0, p = lit_Undef; i < ps.size(); i++)
         if (value(ps[i]) == l_True || ps[i] == ~p)
             return true;
-        else if (value(ps[i]) != l_False && ps[i] != p)
+        else if ( (value(ps[i]) != l_False && ps[i] != p))
             ps[j++] = p = ps[i];
     ps.shrink(i - j);
 
@@ -247,15 +245,14 @@ bool Solver::satisfied(const Clause& c) const {
 //
 void Solver::cancelUntil(int level) {
     if (decisionLevel() > level){
+    	for(int i=0; i<symmetries.size(); ++i){
+    		symmetries[i]->notifyBacktrack();
+    	}
     	if(verbosity>=2){ printf("Backtrack occurs on level %i to level %i\n",decisionLevel(),level); }
 
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
         	if(verbosity>=2){ printf("Back: %i\n",toDimacs(trail[c])); }
 
-			int litIndex = toInt(trail[c]);
-			for(int i=watcherSymmetries[litIndex].size()-1; i>=0; --i){
-				watcherSymmetries[litIndex][i]->notifyBacktrack(trail[c]);
-			}
 			decisionVars[var(trail[c])]=false;
 
             Var      x  = var(trail[c]);
@@ -278,7 +275,7 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 		assert(from[i]!=to[i]);
 		watcherSymmetries[toInt(from[i])].push(sym);
 
-		if(from[i]==~to[i]){
+		if(from[i]==~to[i] && var(from[i])!=0){
 			isInverting = true;
 			if(varOrderOptimization){
 				varBumpActivity(var(from[i]),-var_inc);
@@ -288,8 +285,8 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 	if(isInverting){
 		++invertingSyms;
 	}
-
-	assert(testSymmetry(sym));
+	
+	//sym->print(); 
 }
 
 CRef Solver::propagateSymmetrical(Symmetry* sym, Lit l){
@@ -335,68 +332,14 @@ CRef Solver::propagateSymmetrical(Symmetry* sym, Lit l){
 	}
 }
 
-void Solver::notifySymmetries(Lit p){
-	//	printf("Enqueueing %i at level %i - isDecision: %i\n",toInt(p),decisionLevel(),isDecision(p));
-	for(int i=watcherSymmetries[toInt(p)].size()-1; i>=0 ; --i){
-		watcherSymmetries[toInt(p)][i]->notifyEnqueued(p);
-	}
-	assert( testActivityForSymmetries() );
-}
+//void Solver::notifySymmetries(Lit p){
+//	//	printf("Enqueueing %i at level %i - isDecision: %i\n",toInt(p),decisionLevel(),isDecision(p));
+//	for(int i=watcherSymmetries[toInt(p)].size()-1; i>=0 ; --i){
+//		watcherSymmetries[toInt(p)][i]->notifyEnqueued(p);
+//	}
+//}
 
 // sym_testing
-
-bool Solver::testSymmetry(Symmetry* sym){
-	if(!debug){ return true; }
-	for(int i=0; i<nClauses(); ++i){
-		Clause& orig = ca[clauses[i]];
-		std::set<Lit> orig_set;
-		std::set<Lit> sym_set;
-		for(int j=0; j<orig.size();++j){
-			orig_set.insert(orig[j]);
-			sym_set.insert(sym->getSymmetrical(orig[j]));
-		}
-		bool hasSymmetrical = sym_set==orig_set;
-		for(int j=0; !hasSymmetrical && j<nClauses(); ++j){
-			Clause& symmetrical=ca[clauses[j]];
-			sym_set.clear();
-			if(orig.size()==symmetrical.size()){
-				for(int k=0; k<symmetrical.size(); ++k){
-					sym_set.insert(sym->getInverse(symmetrical[k]));
-				}
-				hasSymmetrical = sym_set==orig_set;
-			}
-		}
-		assert(hasSymmetrical);
-	}
-	return true;
-}
-
-bool Solver::testActivityForSymmetries(){
-	if(!debug){ return true; }
-	for(int i=0; i<symmetries.size(); ++i){
-		if(symmetries[i]->isPermanentlyInactive()!=symmetries[i]->testIsPermanentlyInactive(trail) ){
-			printf("ERROR: not sure if a symmetry is permanently inactive...\n");
-			printf("symmetry says: %i - ",symmetries[i]->isPermanentlyInactive() );
-			printf("test says: %i\n",symmetries[i]->testIsPermanentlyInactive(trail) );
-			symmetries[i]->print();
-			for(int j=0; j<trail.size(); ++j){
-				printf("%i | %i | %i\n",level(var(trail[j])),toInt(trail[j]),isDecision(trail[j]));
-			}
-			assert(false);
-		}
-		if(symmetries[i]->isActive()!=symmetries[i]->testIsActive(trail) ){
-			printf("ERROR: not sure if a symmetry is active...\n");
-			printf("symmetry says: %i - ",symmetries[i]->isActive() );
-			printf("test says: %i\n",symmetries[i]->testIsActive(trail) );
-			symmetries[i]->print();
-			for(int j=0; j<trail.size(); ++j){
-				printf("%i | %i | %i\n",level(var(trail[j])),toInt(trail[j]),isDecision(trail[j]));
-			}
-			assert(false);
-		}
-	}
-	return true;
-}
 
 void Solver::testPrintSymmetricalClauseInfo(Symmetry* sym, Lit l, vec<Lit>& reason){
 	printf("Lit l: %i | sym(l): %i\n",toInt(l),toInt(sym->getSymmetrical(l)));
@@ -517,6 +460,10 @@ void Solver::testPrintTrail(){
 
 Lit Solver::pickBranchLit()
 {
+	if(value(0)==l_Undef){
+		return mkLit(0, true);
+	}
+	
     Var next = var_Undef;
 
     // Random decision:
@@ -606,12 +553,12 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     //
     int i, j;
     out_learnt.copyTo(analyze_toclear);
-    if (ccmin_mode == 2){
+    if (false){//ccmin_mode == 2){
         for (i = j = 1; i < out_learnt.size(); i++)
-            if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]))
+            if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]) )
                 out_learnt[j++] = out_learnt[i];
         
-    }else if (ccmin_mode == 1){
+    }else if (false){//ccmin_mode == 1){
         for (i = j = 1; i < out_learnt.size(); i++){
             Var x = var(out_learnt[i]);
 
@@ -620,7 +567,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
             else{
                 Clause& c = ca[reason(var(out_learnt[i]))];
                 for (int k = 1; k < c.size(); k++)
-                    if (!seen[var(c[k])] && level(var(c[k])) > 0){
+                    if ((!seen[var(c[k])] && level(var(c[k])) > 0) ){
                         out_learnt[j++] = out_learnt[i];
                         break; }
             }
@@ -759,7 +706,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
 
-    notifySymmetries(p);
+    //notifySymmetries(p);
 }
 
 
@@ -781,6 +728,11 @@ CRef Solver::propagate()
 
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
+        
+        if(p==mkLit(0, false)){
+        	gracefulExit(l_False);
+        }
+        
         vec<Watcher>&  ws  = watches.lookup(p);
         Watcher        *i, *j, *end;
         num_props++;
@@ -830,25 +782,12 @@ CRef Solver::propagate()
         }
         ws.shrink(i - j);
 
-		// weakly active symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
+		// weakly inactive symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
 		for( int i=symmetries.size()-1; qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
 			Symmetry* sym = symmetries[i];
-			Lit orig = lit_Undef;
-			if(sym->isActive()){
-				orig = sym->getNextToPropagate();
-				if(orig!=lit_Undef){
-					confl = propagateSymmetrical(sym,orig);
-				}
-			}
-		}
-		// weakly inactive symmetry propagation: the condition qhead==trail.size() makes sure symmetry propagation is executed after unit propagation
-		for( int i=symmetries.size()-1; inactivePropagationOptimization && qhead==trail.size() && confl==CRef_Undef && i>=0; --i){
-			Symmetry* sym = symmetries[i];
-			if(!sym->isActive()){
-				Lit orig = sym->getNextToPropagate();
-				if(orig!=lit_Undef){
-					confl = propagateSymmetrical(sym,orig);
-				}
+			Lit orig = sym->getNextToPropagate();
+			if(orig!=lit_Undef){
+				//confl = propagateSymmetrical(sym,orig);
 			}
 		}
 		if(confl!=CRef_Undef){
@@ -1015,6 +954,7 @@ lbool Solver::search(int nof_conflicts)
 
             learnt_clause.clear();
             analyze(confl, learnt_clause, backtrack_level);
+            
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
