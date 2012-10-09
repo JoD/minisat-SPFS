@@ -86,12 +86,6 @@ static void parse_DIMACS_main(B& in, Solver& S, bool useBreaking) {
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of variables.\n");
 	if (cnt  != clauses)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of clauses.\n");
-	
-	if(useBreaking){
-		lits.clear();
-		lits.push(mkLit(0,true));
-		S.addClause_(lits);
-	}
 }
 
 template<class B, class Solver>

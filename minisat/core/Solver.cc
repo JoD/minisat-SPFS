@@ -787,7 +787,7 @@ CRef Solver::propagate()
 			Symmetry* sym = symmetries[i];
 			Lit orig = sym->getNextToPropagate();
 			if(orig!=lit_Undef){
-				//confl = propagateSymmetrical(sym,orig);
+				confl = propagateSymmetrical(sym,orig);
 			}
 		}
 		if(confl!=CRef_Undef){
