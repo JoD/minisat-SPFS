@@ -289,6 +289,7 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 		++invertingSyms;
 	}
 
+	if(verbosity>=2){sym->print();} 
 	assert(testSymmetry(sym));
 }
 

@@ -51,6 +51,20 @@ public:
     //
     Solver();
     virtual ~Solver();
+    
+    void	gracefulExit(lbool ret){
+    	printf("===============================================================================\n");
+    	printResult(ret);
+    	printf("This was a graceful exit, no data will be written to files.\n");
+    	exit(0);
+    }
+    
+    void	printResult(lbool ret){
+    	if (verbosity > 0){
+			printStats();
+			printf("\n"); }	
+		printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+    }
 
     // Problem specification:
     //
@@ -468,9 +482,21 @@ public:
 
 	Symmetry(Solver* solver, vec<Lit>& from, vec<Lit>& to, int id):
 		s(solver),id(id){
-		sym.growTo(s->nVars()*2);
-		inv.growTo(s->nVars()*2);
-		for(int i=sym.size()-1; i>=0; --i){
+		assert(from.size()==to.size());
+		int maxIndex = 0;
+		for(int i=0; i<from.size(); ++i){
+			if(from[i]!=to[i]){
+				if(toInt(from[i])>maxIndex){
+					maxIndex=toInt(from[i]);
+				}
+				if(toInt(to[i])>maxIndex){
+					maxIndex=toInt(from[i]);
+				}
+			}
+		}
+		sym.growTo(maxIndex+1);
+		inv.growTo(maxIndex+1);
+		for(int i=0; i<sym.size(); ++i){
 			sym[i]=toLit(i);
 			inv[i]=toLit(i);
 		}
@@ -487,7 +513,7 @@ public:
 		printf("Symmetry: %i - neededForActive: %i\n",getId(),amountNeededForActive);
 		for(int i=0; i<sym.size(); ++i){
 			if(sym[i]!=toLit(i)){
-				printf("%i->%i | ",i,toInt(sym[i]));
+				printf("%i->%i | ",s->toDimacs(toLit(i)),s->toDimacs(sym[i]));
 			}
 		}printf("\n notifiedLits: ");
 		for(int i=0; i<notifiedLits.size(); ++i){
@@ -523,11 +549,11 @@ public:
 		}
 	}
 
-	//	@pre:	in_clause is clause without true literals
+	//TODO: this method should never get called when clause isn't unit or conflict, so code could be simpler
 	//	@post: 	out_clause is one of three options, depending on the number of unknown literals:
 	//			all false literals with first most recent and second second recent
 	//			first literal unknown, rest false and second most recent
-	//			first two literals unknown
+	//			first two literals unknown, rest non-true
 	void getSortedSymmetricalClause(Clause& in_clause, vec<Lit>& out_clause){
 		assert(in_clause.size()>=2);
 		int first=0;
@@ -561,10 +587,16 @@ public:
 	}
 
 	Lit getSymmetrical(Lit l){
+		if(toInt(l)>=sym.size()){
+			return l;
+		}
 		return sym[toInt(l)];
 	}
 
 	Lit getInverse(Lit l){
+		if(toInt(l)>=inv.size()){
+			return l;
+		}
 		return inv[toInt(l)];
 	}
 

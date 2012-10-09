@@ -70,6 +70,7 @@ int main(int argc, char** argv)
         IntOption    verb   ("MAIN", "verb",   "Verbosity level (0=silent, 1=some, 2=more).", 1, IntRange(0, 2));
         IntOption    cpu_lim("MAIN", "cpu-lim","Limit on CPU time allowed in seconds.\n", 0, IntRange(0, INT32_MAX));
         IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", 0, IntRange(0, INT32_MAX));
+	BoolOption   use_dynamic("MAIN", "dynamic-breaking","Use provided dynamic symmetry breaking.\n", true);
         
         parseOptions(argc, argv, true);
 
@@ -101,20 +102,23 @@ int main(int argc, char** argv)
         parse_DIMACS(in, S);
         gzclose(in);
 
-		//parse symmetry file
-		char nieuwbestand[strlen(argv[1])+4];
-		strcpy(nieuwbestand,argv[1]);
-		strcat(nieuwbestand,".txt");
-
-		in=gzopen(nieuwbestand,"rb");
+        if(use_dynamic){
+        	//parse symmetry file
+		char symFile[strlen(argv[1])+4];
+		strcpy(symFile,argv[1]);
+		strcat(symFile,".txt");
+		in=gzopen(symFile,"rb");
+	
 		if (in != NULL){
 			parse_SYMMETRY(in,S);
 		}
 		gzclose(in);
-		if (S.verbosity > 0){
-			printf("|  Number of symmetries:%12d                                          |\n",S.nSymmetries());
-			printf("|  Number of invertingSyms:%9d                                          |\n",S.nInvertingSymmetries());
-		}
+        }
+		
+	if (S.verbosity > 0){
+		printf("|  Number of symmetries:%13d                                         |\n",S.nSymmetries());
+		printf("|  Number of invertingSyms:%10d                                         |\n",S.nInvertingSymmetries());
+	}
 
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
         
@@ -144,10 +148,7 @@ int main(int argc, char** argv)
         
         vec<Lit> dummy;
         lbool ret = S.solveLimited(dummy);
-        if (S.verbosity > 0){
-            S.printStats();
-            printf("\n"); }
-        printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+	S.printResult(ret);
         if (res != NULL){
             if (ret == l_True){
                 fprintf(res, "SAT\n");

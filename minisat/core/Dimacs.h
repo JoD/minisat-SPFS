@@ -96,7 +96,7 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 	++in; // skipping the "["
 	++in; // jumping to next line
 	int start,first, second;
-	while(true){
+	while(*in!=']'){
 		vec<Lit> symFrom, symTo;
 		while(*in=='('){
 			++in;
@@ -134,7 +134,7 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 		if(*in==','){
 			++in; ++in; assert(*in=='(');
 		}else{
-			break;
+			++in; assert(*in==']');
 		}
 	}
 }
