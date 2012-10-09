@@ -99,7 +99,7 @@ int main(int argc, char** argv)
             printf("============================[ Problem Statistics ]=============================\n");
             printf("|                                                                             |\n"); }
         
-        parse_DIMACS(in, S);
+        parse_DIMACS(in, S, use_breaking);
         gzclose(in);
         
         if(use_dynamic){
@@ -110,7 +110,7 @@ int main(int argc, char** argv)
 			in=gzopen(symFile,"rb");
 			
 			if (in != NULL){
-				parse_SYMMETRY(in,S);
+				parse_SYMMETRY(in,S,use_breaking);
 			}
 			gzclose(in);
         }
@@ -122,6 +122,7 @@ int main(int argc, char** argv)
         
 		int currentClauses=S.nClauses();
         if(use_breaking){
+        	S.useBreaking=use_breaking;
 			//parse symmetry breaking clauses file
 			char breakingFile[strlen(argv[1])+12];
 			strcpy(breakingFile,argv[1]);

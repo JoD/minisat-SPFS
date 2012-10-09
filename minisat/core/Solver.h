@@ -51,6 +51,7 @@ public:
     //
     Solver();
     virtual ~Solver();
+    
     void	gracefulExit(lbool ret){
     	printf("===============================================================================\n");
     	printResult(ret);
@@ -170,6 +171,7 @@ public:
     bool	addPropagationClauses;
     bool	addConflictClauses;
     bool	varOrderOptimization;
+    bool	useBreaking;
 
     // Statistics: (read-only member variable)
     //
@@ -477,9 +479,21 @@ public:
 
 	Symmetry(Solver* solver, vec<Lit>& from, vec<Lit>& to, int id):
 		s(solver),id(id){
-		sym.growTo(s->nVars()*2);
-		inv.growTo(s->nVars()*2);
-		for(int i=sym.size()-1; i>=0; --i){
+		assert(from.size()==to.size());
+		int maxIndex = 0;
+		for(int i=0; i<from.size(); ++i){
+			if(from[i]!=to[i]){
+				if(toInt(from[i])>maxIndex){
+					maxIndex=toInt(from[i]);
+				}
+				if(toInt(to[i])>maxIndex){
+					maxIndex=toInt(from[i]);
+				}
+			}
+		}
+		sym.growTo(maxIndex+1);
+		inv.growTo(maxIndex+1);
+		for(int i=0; i<sym.size(); ++i){
 			sym[i]=toLit(i);
 			inv[i]=toLit(i);
 		}
@@ -494,7 +508,7 @@ public:
 		printf("Symmetry: %i\n",id);
 		for(int i=0; i<sym.size(); ++i){
 			if(sym[i]!=toLit(i)){
-				printf("%i->%i | ",i,toInt(sym[i]));
+				printf("%i->%i | ",s->toDimacs(toLit(i)),s->toDimacs(sym[i]));
 			}
 		}
 		printf("nextToPropagate: %i\n",nextToPropagate);
@@ -563,11 +577,17 @@ public:
 	}
 
 	Lit getSymmetrical(Lit l){
-		int int_l=toInt(l);
-		if(int_l>=sym.size()){
+		if(toInt(l)>=sym.size()){
 			return l;
 		}
-		return sym[int_l];
+		return sym[toInt(l)];
+	}
+	
+	Lit getInverse(Lit l){
+		if(toInt(l)>=inv.size()){
+			return l;
+		}
+		return inv[toInt(l)];
 	}
 
 	Lit getNextToPropagate(){

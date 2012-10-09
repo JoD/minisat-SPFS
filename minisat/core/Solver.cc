@@ -177,7 +177,7 @@ bool Solver::addClause_(vec<Lit>& ps)
     for (i = j = 0, p = lit_Undef; i < ps.size(); i++)
         if (value(ps[i]) == l_True || ps[i] == ~p)
             return true;
-        else if ( (value(ps[i]) != l_False && ps[i] != p))
+        else if (value(ps[i]) != l_False && ps[i] != p)
             ps[j++] = p = ps[i];
     ps.shrink(i - j);
 
@@ -275,7 +275,7 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 		assert(from[i]!=to[i]);
 		watcherSymmetries[toInt(from[i])].push(sym);
 
-		if(from[i]==~to[i] && var(from[i])!=0){
+		if(from[i]==~to[i] && (!useBreaking || var(from[i])!=0) ){
 			isInverting = true;
 			if(varOrderOptimization){
 				varBumpActivity(var(from[i]),-var_inc);
@@ -286,7 +286,7 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 		++invertingSyms;
 	}
 	
-	//sym->print(); 
+	if(verbosity>=2){sym->print();} 
 }
 
 CRef Solver::propagateSymmetrical(Symmetry* sym, Lit l){
@@ -460,7 +460,7 @@ void Solver::testPrintTrail(){
 
 Lit Solver::pickBranchLit()
 {
-	if(value(0)==l_Undef){
+	if(useBreaking && value(0)==l_Undef){
 		return mkLit(0, true);
 	}
 	
@@ -553,12 +553,12 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     //
     int i, j;
     out_learnt.copyTo(analyze_toclear);
-    if (false){//ccmin_mode == 2){
+    if (ccmin_mode == 2){
         for (i = j = 1; i < out_learnt.size(); i++)
-            if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]) )
+            if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]))
                 out_learnt[j++] = out_learnt[i];
         
-    }else if (false){//ccmin_mode == 1){
+    }else if (ccmin_mode == 1){
         for (i = j = 1; i < out_learnt.size(); i++){
             Var x = var(out_learnt[i]);
 
@@ -567,7 +567,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
             else{
                 Clause& c = ca[reason(var(out_learnt[i]))];
                 for (int k = 1; k < c.size(); k++)
-                    if ((!seen[var(c[k])] && level(var(c[k])) > 0) ){
+                    if (!seen[var(c[k])] && level(var(c[k])) > 0){
                         out_learnt[j++] = out_learnt[i];
                         break; }
             }
@@ -729,7 +729,7 @@ CRef Solver::propagate()
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
         
-        if(p==mkLit(0, false)){
+        if(useBreaking && p==mkLit(0, false)){
         	gracefulExit(l_False);
         }
         

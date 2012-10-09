@@ -39,20 +39,24 @@ namespace Minisat {
 // DIMACS Parser:
 
 template<class B, class Solver>
-static void readClause(B& in, Solver& S, vec<Lit>& lits) {
+static void readClause(B& in, Solver& S, vec<Lit>& lits, bool useBreaking) {
+	int offset=0;
+	if(!useBreaking){
+		offset=-1;
+	}
 	int     parsed_lit, var;
 	lits.clear();
 	for (;;){
 		parsed_lit = parseInt(in);
 		if (parsed_lit == 0) break;
-		var = abs(parsed_lit); // it used to be -1, but the solver always uses variable 0 to denote symmetry breaking clauses
+		var = abs(parsed_lit)+offset; // it used to be -1, but the solver always uses variable 0 to denote symmetry breaking clauses
 		while (var >= S.nVars()) S.newVar();
 		lits.push( (parsed_lit > 0) ? mkLit(var) : ~mkLit(var) );
 	}
 }
 
 template<class B, class Solver>
-static void parse_DIMACS_main(B& in, Solver& S) {
+static void parse_DIMACS_main(B& in, Solver& S, bool useBreaking) {
 	vec<Lit> lits;
 	int vars    = 0;
 	int clauses = 0;
@@ -75,13 +79,19 @@ static void parse_DIMACS_main(B& in, Solver& S) {
 
 		else{
 			cnt++;
-			readClause(in, S, lits);
+			readClause(in, S, lits, useBreaking);
 			S.addClause_(lits);}
 	}
 	if (vars != S.nVars()-1)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of variables.\n");
 	if (cnt  != clauses)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of clauses.\n");
+	
+	if(useBreaking){
+		lits.clear();
+		lits.push(mkLit(0,true));
+		S.addClause_(lits);
+	}
 }
 
 template<class B, class Solver>
@@ -108,7 +118,7 @@ static void parse_BREAKING_main(B& in, Solver& S) {
 			skipLine(in);
 		else{
 			cnt++;
-			readClause(in, S, lits);
+			readClause(in, S, lits, true);
 			lits.push(mkLit(0,false));
 			S.addClause_(lits);}
 	}
@@ -124,8 +134,12 @@ static void parse_BREAKING_main(B& in, Solver& S) {
 // The positive literal is itself, the negative literal is the positive literal + the total number of variables.
 // e.g.: c (1 2 3)(4 5 6) 0 denotes the symmetry 1->2, 2->3, 3->1, -1->-2, -2->-3, -3->-1.
 template<class B, class Solver>
-static void parse_SYMMETRY_main(B& in, Solver& S) {
-	int nrVars=S.nVars()-1;
+static void parse_SYMMETRY_main(B& in, Solver& S, bool useBreaking) {
+	int offset=0;
+	if(!useBreaking){
+		offset=-1;
+	}
+	int nrVars=S.nVars()-1-offset;
 	assert(nrVars>0);
 	assert(*in=='[');
 	++in; // skipping the "["
@@ -149,8 +163,8 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 					second=nrVars-second;
 				}
 				if(second>= -nrVars && first>= -nrVars){ //check for phase shift symmetries
-					symFrom.push(mkLit(abs(first),first<0));
-					symTo.push(mkLit(abs(second),second<0));
+					symFrom.push(mkLit(abs(first)+offset,first<0));
+					symTo.push(mkLit(abs(second)+offset,second<0));
 				}else{
 					assert(second< -nrVars && first< -nrVars);
 				}
@@ -159,16 +173,18 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 			first = second;
 			second = start;
 			if(second>=-nrVars && first>=-nrVars){ //check for phase shift symmetries
-				symFrom.push(mkLit(abs(first),first<0));
-				symTo.push(mkLit(abs(second),second<0));
+				symFrom.push(mkLit(abs(first)+offset,first<0));
+				symTo.push(mkLit(abs(second)+offset,second<0));
 			}else{
 				assert(second< -nrVars && first< -nrVars);
 			}
 		}
-		symFrom.push(mkLit(0,false));
-		symTo.push(mkLit(0,true));
-		symFrom.push(mkLit(0,true));
-		symTo.push(mkLit(0,false));
+		if(useBreaking){
+			symFrom.push(mkLit(0,false));
+			symTo.push(mkLit(0,true));
+			symFrom.push(mkLit(0,true));
+			symTo.push(mkLit(0,false));
+		}
 		S.addSymmetry(symFrom,symTo);
 		if(*in==','){
 			++in; ++in; assert(*in=='(');
@@ -181,9 +197,9 @@ static void parse_SYMMETRY_main(B& in, Solver& S) {
 // Inserts problem into solver.
 //
 template<class Solver>
-static void parse_DIMACS(gzFile input_stream, Solver& S) {
+static void parse_DIMACS(gzFile input_stream, Solver& S, bool useBreaking=false) {
 	StreamBuffer in(input_stream);
-	parse_DIMACS_main(in, S); }
+	parse_DIMACS_main(in, S, useBreaking); }
 
 // Inserts symmetry breaking clauses into solver.
 //
@@ -195,9 +211,9 @@ static void parse_BREAKING(gzFile input_stream, Solver& S) {
 // Inserts symmetry into solver.
 //
 template<class Solver>
-static void parse_SYMMETRY(gzFile input_stream, Solver& S) {
+static void parse_SYMMETRY(gzFile input_stream, Solver& S, bool useBreaking=false) {
 	StreamBuffer in(input_stream);
-	parse_SYMMETRY_main(in, S); }
+	parse_SYMMETRY_main(in, S, useBreaking); }
 
 //=================================================================================================
 }
