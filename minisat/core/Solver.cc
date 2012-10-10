@@ -89,6 +89,8 @@ Solver::Solver() :
   , addPropagationClauses			(opt_storing)
   , addConflictClauses				(opt_storing)
   , varOrderOptimization			(opt_inverting)
+  , breakingClauses					(0)
+  , pureClauses						(0)
 
     // Statistics: (formerly in 'SolverStats')
     //
@@ -953,6 +955,18 @@ lbool Solver::search(int nof_conflicts)
 
             learnt_clause.clear();
             analyze(confl, learnt_clause, backtrack_level);
+            bool isBreakingClause=false;
+            for(int i=0; i<learnt_clause.size();++i){
+            	if(var(learnt_clause[i])==0){
+            		isBreakingClause=true;
+            		break;
+            	}
+            }
+            if(isBreakingClause){
+            	breakingClauses++;
+            }else{
+            	pureClauses++;
+            }
             
             cancelUntil(backtrack_level);
 
@@ -1236,6 +1250,8 @@ void Solver::printStats() const
     printf("propagations          : %-12"PRIu64"   (%.0f /sec)\n", propagations, propagations/cpu_time);
     printf("sympropagations       : %-12"PRIu64"   (%.0f /sec)\n", sympropagations, sympropagations/cpu_time);
     printf("conflict literals     : %-12"PRIu64"   (%4.2f %% deleted)\n", tot_literals, (max_literals - tot_literals)*100 / (double)max_literals);
+    printf("pure learnt clauses   : %i\n", pureClauses);
+    printf("breaking clauses      : %i\n", breakingClauses);
     if (mem_used != 0) printf("Memory used           : %.2f MB\n", mem_used);
     printf("CPU time              : %g s\n", cpu_time);
 }

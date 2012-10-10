@@ -172,6 +172,8 @@ public:
     bool	addConflictClauses;
     bool	varOrderOptimization;
     bool	useBreaking;
+    int		breakingClauses;
+    int		pureClauses;
 
     // Statistics: (read-only member variable)
     //
