@@ -40,9 +40,9 @@ namespace Minisat {
 
 template<class B, class Solver>
 static void readClause(B& in, Solver& S, vec<Lit>& lits, bool useBreaking) {
-	int offset=0;
-	if(!useBreaking){
-		offset=-1;
+	int offset=-1;
+	if(useBreaking){
+		offset=0;
 	}
 	int     parsed_lit, var;
 	lits.clear();
@@ -57,6 +57,10 @@ static void readClause(B& in, Solver& S, vec<Lit>& lits, bool useBreaking) {
 
 template<class B, class Solver>
 static void parse_DIMACS_main(B& in, Solver& S, bool useBreaking) {
+	int offset=-1;
+	if(useBreaking){
+		offset=0;
+	}
 	vec<Lit> lits;
 	int vars    = 0;
 	int clauses = 0;
@@ -82,7 +86,7 @@ static void parse_DIMACS_main(B& in, Solver& S, bool useBreaking) {
 			readClause(in, S, lits, useBreaking);
 			S.addClause_(lits);}
 	}
-	if (vars != S.nVars()-1)
+	if (vars != S.nVars()-1-offset)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of variables.\n");
 	if (cnt  != clauses)
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of clauses.\n");
@@ -129,9 +133,9 @@ static void parse_BREAKING_main(B& in, Solver& S) {
 // e.g.: c (1 2 3)(4 5 6) 0 denotes the symmetry 1->2, 2->3, 3->1, -1->-2, -2->-3, -3->-1.
 template<class B, class Solver>
 static void parse_SYMMETRY_main(B& in, Solver& S, bool useBreaking) {
-	int offset=0;
-	if(!useBreaking){
-		offset=-1;
+	int offset=-1;
+	if(useBreaking){
+		offset=0;
 	}
 	int nrVars=S.nVars()-1-offset;
 	assert(nrVars>0);

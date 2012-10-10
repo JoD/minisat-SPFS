@@ -79,6 +79,7 @@ int main(int argc, char** argv)
         double initial_time = cpuTime();
 
         S.verbosity = verb;
+    	S.useBreaking = use_breaking;
         
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
@@ -122,7 +123,6 @@ int main(int argc, char** argv)
         
 		int currentClauses=S.nClauses();
         if(use_breaking){
-        	S.useBreaking=use_breaking;
 			//parse symmetry breaking clauses file
 			char breakingFile[strlen(argv[1])+12];
 			strcpy(breakingFile,argv[1]);

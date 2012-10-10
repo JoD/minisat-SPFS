@@ -248,10 +248,10 @@ void Solver::cancelUntil(int level) {
     	for(int i=0; i<symmetries.size(); ++i){
     		symmetries[i]->notifyBacktrack();
     	}
-    	if(verbosity>=2){ printf("Backtrack occurs on level %i to level %i\n",decisionLevel(),level); }
+    	if(verbosity>=3){ printf("Backtrack occurs on level %i to level %i\n",decisionLevel(),level); }
 
         for (int c = trail.size()-1; c >= trail_lim[level]; c--){
-        	if(verbosity>=2){ printf("Back: %i\n",toDimacs(trail[c])); }
+        	if(verbosity>=3){ printf("Back: %i\n",toDimacs(trail[c])); }
 
 			decisionVars[var(trail[c])]=false;
 
@@ -274,8 +274,7 @@ void Solver::addSymmetry(vec<Lit>& from, vec<Lit>& to){
 	for(int i=0; i<from.size(); ++i){
 		assert(from[i]!=to[i]);
 		watcherSymmetries[toInt(from[i])].push(sym);
-
-		if(from[i]==~to[i] && (!useBreaking || var(from[i])!=0) ){
+		if(from[i]==~to[i] && !(useBreaking && var(from[i])==0) ){
 			isInverting = true;
 			if(varOrderOptimization){
 				varBumpActivity(var(from[i]),-var_inc);
@@ -737,7 +736,7 @@ CRef Solver::propagate()
         Watcher        *i, *j, *end;
         num_props++;
 
-        if(verbosity>=2){ printf("Prop %i: %i\n",decisionLevel(),toDimacs(p)); }
+        if(verbosity>=3){ printf("Prop %i: %i\n",decisionLevel(),toDimacs(p)); }
 
         for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
             // Try to avoid inspecting the clause:
@@ -965,7 +964,7 @@ lbool Solver::search(int nof_conflicts)
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
                 uncheckedEnqueue(learnt_clause[0], cr);
-                if(verbosity>=2){ printf("Conflict clause added: "); testPrintClauseDimacs(cr); }
+                if(verbosity>=3){ printf("Conflict clause added: "); testPrintClauseDimacs(cr); }
             }
 
             varDecayActivity();

@@ -472,7 +472,7 @@ private:
 	Solver* s;
 	int id;
 	int nextToPropagate;
-
+	vec<Lit> potentialLits;
 
 public:
 
@@ -591,60 +591,68 @@ public:
 	}
 
 	Lit getNextToPropagate(){
-		while(nextToPropagate<s->trail.size() && canNotPropagateUntilBacktrack(s->trail[nextToPropagate])){
-			++nextToPropagate;
+		for(int i=0; i<potentialLits.size(); ++i){
+			int result = canPropagate(potentialLits[i]);
+			if(result==3){
+				Lit propagatable = potentialLits[i]; 
+				potentialLits[i]=potentialLits[potentialLits.size()-1];
+				return propagatable;
+			}
+			if(result==1){
+				potentialLits[i]=potentialLits[potentialLits.size()-1];
+				potentialLits.pop();
+				--i;
+			}
 		}
-		for(int i=nextToPropagate; i<s->trail.size(); ++i){
-			if(canPropagate(s->trail[i])){
-				return s->trail[i];
+		
+		while(nextToPropagate<s->trail.size()){
+			Lit next = s->trail[nextToPropagate];
+			++nextToPropagate;
+			int result = canPropagate(next);
+			if(result==3){
+				return next;
+			}else if(result==2){
+				potentialLits.push(next);
 			}
 		}
 		
 		return lit_Undef;
 	}
-	
-	bool canNotPropagateUntilBacktrack(Lit l){
-		if(s->isDecision(l)){
-			return true;
-		}
-		if(s->level(var(l))==0){
-			return false;
-		}
-		Clause& cl = s->ca[s->reason(var(l))];
-		for(int i=0; i<cl.size(); ++i){
-			if(s->value(getSymmetrical(cl[i]))==l_True){
-				return true;
-			}
-		}
-		return false;
-	}
 
-	bool canPropagate(Lit l){
-		if(s->isDecision(l) || s->value(getSymmetrical(l))==l_True){
-			return false;
+	/*
+	 * @return:
+	 * 	1: you can never propagate l without a backtrack
+	 * 	2: you can not propagate l now, but maybe after more assignments
+	 * 	3: you can propagate l now 
+	 */
+	int canPropagate(Lit l){
+		if(		s->isDecision(l) || 
+				getSymmetrical(l)==l || 
+				s->value(getSymmetrical(l))==l_True){
+			return 1;
 		}
 		if(s->level(var(l))==0){
-			return true;
+			return 3;
 		}
-		Clause& cl = s->ca[s->reason(var(l))];
 		
-		bool noUndefYet = true;
+		Clause& cl = s->ca[s->reason(var(l))];
+		int nbUndefs = 0;
 		for(int i=0; i<cl.size(); ++i){
 			if(s->value(getSymmetrical(cl[i]))==l_True){
-				return false;
+				return 1;
 			}else if(s->value(getSymmetrical(cl[i]))==l_Undef){
-				if(noUndefYet){
-					noUndefYet=false;
-				}else{
-					return false;
+				++nbUndefs;
+				if(nbUndefs>=2){
+					return 2;
 				}
 			}
 		}
-		return true;
+		return 3;
 	}
 
 	void notifyBacktrack(){
 		nextToPropagate=0;
+		potentialLits.clear();
 	}
 };
 
