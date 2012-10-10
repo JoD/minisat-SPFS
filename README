@@ -1,3 +1,9 @@
+This is the code for the Minisat+SP SAT solver which implements Symmetry 
+Propagation (SP). A paper describing the algorithm has been accepted at 
+ICTAI 2012, and will be published in due time. An older (and hence 
+uncopyrighted) version of the paper is available at this repository under the 
+name "Symmetry Propagation: Improved DynamicSymmetry Breaking in SAT.pdf".
+
 For full benchmark results, see the folder "full benchmark results".
 
 For cnf test files, see the folder "cnf test files".
@@ -6,11 +12,6 @@ To compile and run Minisat+SP, go to the last paragraph of this readme.
 
 To download this repository without using git, click on the "ZIP" button in the
 upper left corner of the web page "https://github.com/JoD/minisat-SPFS".
-
-For more information, see the file "Symmetry Propagation: Improved Dynamic 
-Symmetry Breaking in SAT.pdf". This paper describes the ideas and algorithms 
-implemented in this modified version of Minisat. An updated version of this 
-paper was accepted at ICTAI 2012.
 
 ================================================================================
 Quick Install
