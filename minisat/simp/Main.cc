@@ -99,11 +99,11 @@ int main(int argc, char** argv)
         gzclose(in);
 
     	//parse symmetry file
-		char nieuwbestand[strlen(argv[1])+4];
-		strcpy(nieuwbestand,argv[1]);
-		strcat(nieuwbestand,".txt");
+		char symfile[strlen(argv[1])+4];
+		strcpy(symfile,argv[1]);
+		strcat(symfile,".sym");
 
-		in=gzopen(nieuwbestand,"rb");
+		in=gzopen(symfile,"rb");
 		if (in != NULL){
 			parse_SYMMETRY(in,S);
 		}

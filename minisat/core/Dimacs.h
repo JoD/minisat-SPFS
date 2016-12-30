@@ -32,6 +32,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include "minisat/utils/ParseUtils.h"
 #include "minisat/core/SolverTypes.h"
+#include "minisat/mtl/Matrix.h"
 
 namespace Minisat {
 
@@ -83,60 +84,74 @@ static void parse_DIMACS_main(B& in, Solver& S) {
 		fprintf(stderr, "WARNING! DIMACS header mismatch: wrong number of clauses.\n");
 }
 
-// Symmetry is a commented line with cycles.
-// The line starts with "c", followed by a blank, followed by the permutation cycles comprised of literals, followed by a blank followed by a zero.
-// Every literal in a cycle is either a positive or negative literal.
-// The positive literal is itself, the negative literal is the positive literal + the total number of variables.
-// e.g.: c (1 2 3)(4 5 6) 0 denotes the symmetry 1->2, 2->3, 3->1, -1->-2, -2->-3, -3->-1.
+// BreakID format
 template<class B, class Solver>
 static void parse_SYMMETRY_main(B& in, Solver& S) {
-	int nrVars=S.nVars();
-	assert(nrVars>0);
-	assert(*in=='[');
-	++in; // skipping the "["
-	++in; // jumping to next line
-	int start,first, second;
-	while(*in!=']'){
-		vec<Lit> symFrom, symTo;
-		while(*in=='('){
-			++in;
-			start = parseInt(in);
-			if(start>nrVars){ //adjusting shatter's format
-				start=nrVars-start;
-			}
-			second = start;
-			assert(*in==',');
-			while(*in==','){
-				++in;
-				first = second;
-				second = parseInt(in);
-				if(second>nrVars){ //adjusting shatter's format
-					second=nrVars-second;
-				}
-				if(second>= -nrVars && first>= -nrVars){ //check for phase shift symmetries
-					symFrom.push(mkLit(abs(first)-1,first<0));
-					symTo.push(mkLit(abs(second)-1,second<0));
-				}else{
-					assert(second< -nrVars && first< -nrVars);
-				}
-			}
-			assert(*in==')'); ++in;
-			first = second;
-			second = start;
-			if(second>=-nrVars && first>=-nrVars){ //check for phase shift symmetries
-				symFrom.push(mkLit(abs(first)-1,first<0));
-				symTo.push(mkLit(abs(second)-1,second<0));
-			}else{
-				assert(second< -nrVars && first< -nrVars);
-			}
-		}
-		S.addSymmetry(symFrom,symTo);
-		if(*in==','){
-			++in; ++in; assert(*in=='(');
-		}else{
-			++in; assert(*in==']');
-		}
-	}
+    vec<Lit> from;
+    vec<Lit> to;
+    vec<Lit> cycle;
+    for (;;){
+        skipWhitespace(in);
+        if (*in == EOF) {
+            break;
+        } else if (*in == '('){
+            // clear from/to to start a new symmetry
+            from.clear(); to.clear();
+            while(*in != '\n'){ // parse one symmetry
+                cycle.clear();
+                ++in; // skipping '('
+                ++in; // skipping ' '
+                while(*in != ')'){ // parse one cycle
+                    int parsed_lit = parseInt(in);
+                    int var = abs(parsed_lit)-1;
+                    Lit l = (parsed_lit > 0) ? mkLit(var) : ~mkLit(var);
+                    cycle.push(l);
+                    ++in; // skipping ' '
+                }
+                // add cycle to from/to
+                for(int i=0; i<cycle.size()-1; ++i){
+                    from.push(cycle[i]);
+                    to.push(cycle[i+1]);
+                }
+                if(cycle.size()>0){
+                    from.push(cycle.last());
+                    to.push(cycle[0]);
+                }
+                ++in; // skipping ')'
+                ++in; // skipping ' '
+            }
+            ++in; // skipping '/n'
+            S.addSymmetry(from,to);
+        } else if (*in == 'r'){
+            // interchangeability matrix
+            ++in; ++in; ++in; ++in; // skipping "rows"
+            int nbRows = parseInt(in);
+            ++in; ++in; ++in; ++in; ++in; ++in; ++in; ++in; // skipping " columns"
+            int nbColumns = parseInt(in);
+            matrix<Lit> symmat(nbRows,nbColumns);
+            for(int i=0; i<nbRows; ++i){
+                for(int j=0; j<nbColumns; ++j){
+                    int parsed_lit = parseInt(in);
+                    int var = abs(parsed_lit)-1;
+                    Lit l = (parsed_lit > 0) ? mkLit(var) : ~mkLit(var);
+                    symmat.set(i,j,l);
+                }
+            }    
+            for(int i=0; i<symmat.nr; ++i){
+                for(int j=i+1; j<symmat.nr; ++j){
+                    from.clear(); to.clear();
+                    for(int k=0; k<symmat.nc; ++k){
+                        from.push(symmat.get(i,k)); from.push(symmat.get(j,k));
+                        to.push(symmat.get(j,k));   to.push(symmat.get(i,k));
+                    }
+                    S.addSymmetry(from,to);
+                }
+            }
+            ++in; // skipping "\n"
+        } else {
+            skipLine(in);
+        }
+    }
 }
 
 // Inserts problem into solver.
